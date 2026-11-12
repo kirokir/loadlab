@@ -1,0 +1,215 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MIMICA LoadLab</title>
+<style>
+:root{--bg:#f4f2ec;--ink:#111;--mut:#666;--acc:#c8321e;--ok:#1b7a3d;--wn:#a85f00}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Helvetica,Arial,sans-serif}
+header{padding:14px 24px;border-bottom:2px solid var(--ink);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}h1{font-size:22px;margin:0;letter-spacing:-.5px}h1 span{color:var(--acc)}
+.ban{background:var(--ink);color:#fff;padding:6px 24px;font-size:12px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;border-bottom:1px solid var(--ink);padding-bottom:4px}
+main{display:grid;grid-template-columns:repeat(12,1fr)}section{padding:14px 24px;border-bottom:1px solid var(--ink);border-right:1px solid var(--ink);min-width:0}
+.c7{grid-column:span 7}.c5{grid-column:span 5}.c12{grid-column:span 12}.c6{grid-column:span 6}
+#sec1{order:1}#sec2{order:2}#sec3{order:3}#sec4{order:4}#sec5{order:5}#sec6{order:6}
+body.theatre #sec2{order:3;grid-column:span 7}
+body.theatre #sec3{order:2;grid-column:span 5}
+@media(max-width:900px){.c7,.c5,.c6,body.theatre #sec2,body.theatre #sec3{grid-column:span 12}}
+button,select,input{font:inherit}button{background:var(--ink);color:#fff;border:0;padding:6px 10px;margin:0 4px 4px 0;cursor:pointer}button.o{background:none;color:var(--ink);border:1px solid var(--ink)}button.on{background:var(--acc)}
+canvas{width:100%;background:#fff;border:1px solid var(--ink);display:block}
+table{border-collapse:collapse;width:100%;font-size:13px}td,th{border-bottom:1px solid #bbb;padding:3px 6px;text-align:right}td:first-child,th:first-child{text-align:left}
+input[type=number],input[type=text],select{width:100%;padding:4px;border:1px solid var(--ink);background:#fff}label{display:block;font-size:12px;color:var(--mut);margin-top:6px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}.ok{color:var(--ok)}.no{color:var(--acc)}.wn{color:var(--wn)}.mut{color:var(--mut);font-size:12px}
+.badge{display:inline-block;padding:2px 8px;font-weight:700;font-size:12px;color:#fff}.src{position:absolute;left:8px;top:8px;background:var(--acc);color:#fff;font-size:11px;padding:2px 6px}
+details{border-top:1px solid #bbb;padding:6px 0}summary{cursor:pointer;font-weight:700}ul{margin:4px 0;padding-left:18px}.chk{display:flex;gap:6px;font-size:12px;color:var(--ink);margin:2px 0}
+.hdr-meta{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.hdr-meta label{margin:0;display:flex;align-items:center;gap:6px;color:var(--ink);font-weight:700}
+.hdr-meta input{width:150px;font-weight:400}
+</style></head><body>
+<header>
+  <h1>MIMICA <span>LoadLab</span><!-- — markerless lifting assessment (Problem Statement 14)--></h1>
+  <div class="hdr-meta">
+    <label>Subject Name <input type="text" id="subjName" placeholder="Enter name"></label>
+    <label>Test # <input type="text" id="testNum" placeholder="e.g. 01"></label>
+    <button id="bTheatre" class="o" style="margin:0">Theatre Mode: OFF</button>
+  </div>
+</header>
+<!-- <div class="ban">Preliminary screening prototype · single-camera pose estimation · NIOSH RNLE screening · NOT validated, NOT a musculoskeletal/OpenSim model, NOT MIL-STD certified</div> -->
+<main>
+<section id="sec1" class="c7"><h2>1 · Video input &amp; pose tracking</h2>
+<button id="bCam">Webcam</button><button id="bFile" class="o">Upload video</button><button id="bDemo" class="o">Synthetic demo (MOCK)</button><button id="bStop" class="o">Stop</button><button id="bReset" class="o">Reset stats</button>
+<input type="file" id="fileIn" accept="video/*" hidden>
+<div class="g2"><div><label>Camera view of subject</label><select id="view"><option value="right">Right side toward camera (sagittal)</option><option value="left">Left side toward camera (sagittal)</option><option value="front">Front (frontal plane)</option></select></div>
+<div><label>Model (lite = phones/4 GB, full = recommended)</label><select id="model"><option value="lite">Pose Landmarker Lite</option><option value="full" selected>Pose Landmarker Full</option><option value="heavy">Pose Landmarker Heavy</option></select></div></div>
+<div style="position:relative;margin-top:8px"><canvas id="cv" width="640" height="480"></canvas><div class="src" id="srcTag">NO SOURCE</div></div>
+<button id="bCal" class="o">Calibrate scale: click 2 points on reference</button><button id="bCalClr" class="o">Clear scale</button> <span class="mut" id="calTxt">Not calibrated – H, V and cm values unavailable.</span>
+<div class="mut" id="stat">Loading pose model…</div></section>
+<section id="sec2" class="c5"><h2>2 · Measurement-grade gate</h2><div id="gateBadge"></div><div id="gate" style="margin:6px 0"></div>
+<h2 style="margin-top:10px">Setup checklist (you confirm)</h2><div id="chks"></div></section>
+<section id="sec3" class="c7"><h2>3 · Live biomechanics (video-derived)</h2><table id="mt"></table><canvas id="spark" width="640" height="90" style="margin-top:8px"></canvas>
+<div class="mut">Angles are 2D projections in the image plane, smoothed with an exponential filter (α=0.6). Not 3D, not ISB-grade.</div>
+<div style="margin-top:6px"><label>Rep-counting signal</label><select id="sigSel"><option value="auto">Auto (hand height if scale set, else trunk angle)</option><option value="trunk">Trunk inclination</option></select><label>Minimum rep amplitude (cm for hand height / ° for trunk)</label><input type="number" id="amp" value="25" step="1" min="1"></div></section>
+<section id="sec4" class="c5"><h2>4 · Task variables (typed or captured)</h2>
+<button id="tA" class="on">Scenario A</button><button id="tB" class="o">Scenario B</button><button id="cpAB" class="o">Copy A→B</button>
+<div class="mut">Defaults are ILLUSTRATIVE inputs, not military limits.</div><div id="form" class="g2"></div>
+<button id="capO" class="o">Capture ORIGIN H,V from video</button><button id="capD" class="o">Capture DESTINATION H,V from video</button>
+<label>FM between table rows</label><select id="fmMode"><option value="cons">Conservative (next higher tabulated frequency)</option><option value="lin">Linear interpolation</option></select>
+<button id="useRate" class="o" style="margin-top:6px">Use video-measured rate as F</button></section>
+<section id="sec5" class="c12"><h2>5 · RNLE scope check (manual exclusions — tick any that apply; results are withheld if any applies)</h2><div id="ex" class="g2"></div></section>
+<section id="sec6" class="c12"><h2>6 · Revised NIOSH Lifting Equation — Scenario comparison</h2><div id="res"></div>
+<button id="bCsv" style="margin-top:8px">Export CSV report</button><button id="bTest" class="o">Run self-tests</button><button id="bPrint" class="o">Print</button><div id="tests" class="mut"></div></section>
+<!--
+<section class="c6"><h2>Camera &amp; calibration standard (why each rule exists)</h2>
+<details open><summary>Honest status of "standards"</summary>No ISO/MIL standard defines MediaPipe camera placement. This protocol combines: NIOSH RNLE measurement definitions (H, V, D, A), ISB joint conventions (Wu et al. 2002/2005), ISO 11228-1 / ISO 11226 / EN 1005-2 posture/lifting scope, and general photogrammetry practice. Camera rules below are recommended practice, not codified standards.</details>
+<details><summary>Which side to film</summary><ul><li><b>Sagittal (side) view</b>: trunk, hip, knee, elbow flexion and H, V, D need the motion plane perpendicular to the lens (RNLE and ISB flexion/extension are sagittal-plane quantities). The gate checks shoulder separation ÷ torso length &lt; 0.35.</li><li><b>Frontal view</b>: only for lateral trunk lean, shoulder/pelvic tilt and left-right hand height. Sagittal angles are withheld in this view.</li><li><b>Asymmetry A (twist)</b>: needs an overhead/frontal reference; type it in. The 3D twist shown is indicative only.</li></ul></details>
+<details><summary>Camera geometry</summary><ul><li>Fixed tripod, lens at about hip height (~1 m), optical axis horizontal (±5°): avoids vertical perspective error.</li><li>Distance 3–5 m, no zoom changes; whole body incl. both feet and load inside frame with ≥2% margin: MediaPipe loses ankles/feet at edges.</li><li>≥30 fps, ≥720p, shutter fast enough to avoid blur, even lighting, clothing contrasting with background, no loose clothing hiding joints.</li><li>Place the scale reference <b>in the subject's sagittal plane</b> (same depth) — pixel-to-cm scale is only valid at that depth.</li></ul></details>
+<details><summary>Angle definitions used</summary><ul><li>Trunk inclination: hip→shoulder vs vertical, + = forward flexion.</li><li>Hip flexion: 180° − angle(shoulder, hip, knee). Knee flexion: 180° − angle(hip, knee, ankle). Elbow flexion: 180° − angle(shoulder, elbow, wrist).</li><li>Shoulder: angle(hip, shoulder, elbow), 0° = arm along trunk.</li><li>H: horizontal distance from hand grasp centre to mid-ankle. V: grasp centre height above lowest foot landmark. D=|V<sub>dest</sub>−V<sub>orig</sub>|. (NIOSH uses inner-ankle bones; MediaPipe ankle landmark is a proxy.)</li></ul></details></section>
+<section class="c6"><h2>Implementation status — what is real, proxy, or mocked</h2><ul>
+<li><b>Real:</b> MediaPipe Pose Landmarker (CDN), 2D joint angles, landmark smoothing, RNLE equations/tables (Waters et al. 1993; NIOSH Applications Manual), validation, CSV export, self-tests.</li>
+<li><b>Proxy:</b> grasp centre from wrist/index/pinky landmarks; mid-ankle for inner-ankle; rep rate from a short sample (RNLE needs a representative ~15-min mean).</li>
+<li><b>MOCK:</b> "Synthetic demo" is a kinematic stick figure generated by code (illustrative, not a person); its scale is preset. Scenario A/B default numbers are illustrative.</li>
+<li><b>Indicative only:</b> 3D trunk twist from monocular world landmarks.</li>
+<li><b>NOT implemented:</b> Extended Kalman Filter, OpenSim IK/ID, muscle forces, L5/S1 loads, MIL-STD-1472 limits (obtain from ASSIST), composite/variable lifting index, validation statistics.</li></ul>
+<div class="mut">Refs: Waters TR et al., Ergonomics 36(7):749–776 (1993); NIOSH Applications Manual for the Revised Lifting Equation, DHHS(NIOSH) 94-110 (rev. 2021); Wu G et al., J Biomech 35:543 (2002), 38:981 (2005); Google MediaPipe Pose Landmarker; ISO 11228-1; ISO 11226; MIL-STD-1472 / MIL-STD-46855 (DLA ASSIST).</div></section>
+-->
+</main>
+<script type="module">
+import {PoseLandmarker,FilesetResolver} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
+//ENGINE
+const FM_T=[[.2,1,1,.95,.95,.85,.85],[.5,.97,.97,.92,.92,.81,.81],[1,.94,.94,.88,.88,.75,.75],[2,.91,.91,.84,.84,.65,.65],[3,.88,.88,.79,.79,.55,.55],[4,.84,.84,.72,.72,.45,.45],[5,.8,.8,.6,.6,.35,.35],[6,.75,.75,.5,.5,.27,.27],[7,.7,.7,.42,.42,.22,.22],[8,.6,.6,.35,.35,.18,.18],[9,.52,.52,.3,.3,0,.15],[10,.45,.45,.26,.26,0,.13],[11,.41,.41,0,.23,0,0],[12,.37,.37,0,.21,0,0],[13,0,.34,0,0,0,0],[14,0,.31,0,0,0,0],[15,0,.28,0,0,0,0]];
+function FMf(f,dur,V,mode){if(f>15)return 0;const c=1+dur*2+(V>=75?1:0);if(f<=.2)return FM_T[0][c];
+ for(let i=0;i<FM_T.length;i++){const r=FM_T[i];if(f<=r[0]){if(f===r[0]||mode!=='lin')return r[c];const p=FM_T[i-1];if(p[c]===0||r[c]===0)return 0;return p[c]+(r[c]-p[c])*(f-p[0])/(r[0]-p[0])}}return 0}
+function CMf(c,V){return c==='good'?1:c==='fair'?(V<75?.95:1):.9}
+function loc(p){const e=[],n=['m','H','V','A','D','F'];n.forEach(k=>{if(!Number.isFinite(p[k]))e.push(k+' is not a number')});
+ if(e.length)return{valid:false,errs:e};if(p.m<=0)e.push('Load mass must be > 0 kg');if(p.H<0)e.push('H < 0');if(p.V<0)e.push('V < 0');if(p.D<0)e.push('D < 0');if(p.F<0)e.push('F < 0');
+ if(e.length)return{valid:false,errs:e};const w=[];const A=Math.abs(p.A);
+ const HM=p.H<25?(w.push('H<25 cm → HM=1 (manual)'),1):p.H>63?(w.push('H>63 cm → HM=0'),0):25/p.H;
+ const VM=p.V>175?(w.push('V>175 cm → VM=0'),0):1-.003*Math.abs(p.V-75);
+ const DM=p.D<25?1:p.D>175?(w.push('D>175 cm → DM=0'),0):.82+4.5/p.D;
+ const AM=A>135?(w.push('A>135° → AM=0'),0):1-.0032*A;
+ if(p.F>15)w.push('F>15 lifts/min → FM=0');if(p.F<.2)w.push('F<0.2 → table row 0.2 used');
+ const FM=FMf(p.F,p.dur,p.V,p.mode),CM=CMf(p.cp,p.V);const RWL=23*HM*VM*DM*AM*FM*CM;
+ return{valid:true,errs:[],w,HM,VM,DM,AM,FM,CM,RWL,LI:RWL>0?p.m/RWL:Infinity}}
+function task(s,mode,scopeOK){if(!scopeOK)return{scope:false};const D=Math.abs(s.V1-s.V0);
+ const o=loc({m:s.m,H:s.H0,V:s.V0,A:s.A0,D,F:s.F,dur:+s.dur,cp:s.cp,mode});if(!o.valid)return{scope:true,o};
+ const d=s.ctrl?loc({m:s.m,H:s.H1,V:s.V1,A:s.A1,D,F:s.F,dur:+s.dur,cp:s.cp,mode}):null;if(d&&!d.valid)return{scope:true,o,d};
+ const RWL=d?Math.min(o.RWL,d.RWL):o.RWL,LI=Math.max(o.LI,d?d.LI:0);return{scope:true,o,d,RWL,LI,D}}
+const ang=(a,b,c)=>{const u=[a.x-b.x,a.y-b.y],v=[c.x-b.x,c.y-b.y],n=Math.hypot(...u)*Math.hypot(...v);return n?Math.acos(Math.max(-1,Math.min(1,(u[0]*v[0]+u[1]*v[1])/n)))*180/Math.PI:NaN};
+const trunkDeg=(hp,sh,f)=>Math.atan2((sh.x-hp.x)*f,hp.y-sh.y)*180/Math.PI;
+function selfTest(){const r=[],ap=(a,b,t=1e-6)=>Math.abs(a-b)<t;
+ let x=loc({m:23,H:25,V:75,A:0,D:25,F:.2,dur:0,cp:'good',mode:'cons'});r.push(['Ideal lift: all multipliers 1, RWL=23 kg',ap(x.RWL,23)]);
+ x=loc({m:15,H:40,V:30,A:30,D:45,F:1,dur:0,cp:'fair',mode:'cons'});const e=23*.625*(1-.003*45)*(.82+4.5/45)*(1-.0032*30)*.94*.95;r.push(['Hand-derived case (H40,V30,D45,A30,F1,fair)',ap(x.RWL,e)]);
+ r.push(['H>63 → RWL 0',loc({m:5,H:70,V:75,A:0,D:25,F:1,dur:0,cp:'good',mode:'cons'}).RWL===0]);
+ r.push(['A>135 → RWL 0',loc({m:5,H:30,V:75,A:140,D:25,F:1,dur:0,cp:'good',mode:'cons'}).RWL===0]);
+ r.push(['FM table: F=6, >2–8 h, V≥75 → 0.27',FMf(6,2,80,'cons')===.27]);r.push(['FM table: F=10, >2–8 h, V<75 → 0',FMf(10,2,50,'cons')===0]);
+ r.push(['FM table: F=13, ≤1 h, V≥75 → 0.34',FMf(13,0,80,'cons')===.34]);r.push(['CM fair V<75=0.95, V≥75=1.00',CMf('fair',50)===.95&&CMf('fair',80)===1]);
+ r.push(['Invalid input rejected (mass 0)',loc({m:0,H:30,V:75,A:0,D:25,F:1,dur:0,cp:'good',mode:'cons'}).valid===false]);r.push(['Invalid input rejected (NaN)',loc({m:NaN,H:30,V:75,A:0,D:25,F:1,dur:0,cp:'good'}).valid===false]);
+ r.push(['Out-of-scope withholds results',task({m:10,H0:30,V0:20,H1:30,V1:90,A0:0,A1:0,F:1,dur:0,cp:'good',ctrl:false},'cons',false).scope===false]);
+ r.push(['Angle: right angle = 90°',ap(ang({x:0,y:1},{x:0,y:0},{x:1,y:0}),90)]);r.push(['Angle: straight line = 180°',ap(ang({x:-1,y:0},{x:0,y:0},{x:1,y:0}),180)]);
+ r.push(['Trunk upright = 0°',ap(trunkDeg({x:0,y:100},{x:0,y:0},1),0)]);r.push(['Trunk 45° forward',ap(trunkDeg({x:0,y:100},{x:50,y:50},1),45)]);return r}
+//ENDENGINE
+const $=id=>document.getElementById(id),cv=$('cv'),ctx=cv.getContext('2d'),vid=document.createElement('video');vid.muted=true;vid.playsInline=true;
+$('bTheatre').onclick=()=>{const on=document.body.classList.toggle('theatre');$('bTheatre').className=on?'on':'o';$('bTheatre').textContent='Theatre Mode: '+(on?'ON':'OFF')};
+const IDX={left:{sh:11,el:13,wr:15,hp:23,kn:25,an:27,hl:29,ft:31},right:{sh:12,el:14,wr:16,hp:24,kn:26,an:28,hl:30,ft:32}};
+const CON=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[27,29],[29,31],[28,30],[30,32]];
+const SC={A:{m:15,H0:50,V0:20,H1:50,V1:90,A0:0,A1:0,F:1,dur:0,cp:'fair',ctrl:false,lr:50},B:{m:15,H0:30,V0:40,H1:30,V1:90,A0:0,A1:0,F:1,dur:0,cp:'fair',ctrl:false,lr:50}};
+const S={mode:'none',src:'NO SOURCE',sm:null,vis:[],cal:null,calPts:[],calMode:false,cur:'A',lm:null,ts:0,fps:0,lastT:0,ext:{},hist:[],zz:null,peaks:[],cm:null,world:null,lastVT:-1};
+const CH=['Tripod fixed, lens ≈ hip height (~1 m), optical axis horizontal (±5°)','Subject sagittal plane ⟂ optical axis (side view) — verified visually','Distance 3–5 m; full body incl. both feet and load in frame, ≥2% margin','Scale reference placed in the subject\'s sagittal plane and calibrated','≥30 fps, ≥720p, even lighting, contrasting non-loose clothing','Load mass weighed and typed; coupling and A assessed by observer'];
+$('chks').innerHTML=CH.map((t,i)=>`<label class="chk"><input type="checkbox" id="ck${i}">${t}</label>`).join('');
+const EX=['One-handed lift / carrying / walking with load','Pushing or pulling','Seated or kneeling lift','Restricted work space or unpredictable/unstable load (e.g. casualty, shifting contents)','Lifting >8 h per day','High-speed lifting (&gt;~0.8 m/s) or slips/falls on floor (poor foot/floor friction)','Unfavourable environment (outside ~19–26 °C / 35–50 % RH) per manual','Body armour/webbing/PPE restricting posture (not covered by RNLE)'];
+$('ex').innerHTML=EX.map((t,i)=>`<label class="chk"><input type="checkbox" class="exc">${t}</label>`).join('');
+const FLD=[['m','Load mass (kg)'],['F','Frequency (lifts/min)'],['H0','Origin H (cm)'],['V0','Origin V (cm)'],['H1','Destination H (cm)'],['V1','Destination V (cm)'],['A0','Origin asymmetry A (°)'],['A1','Destination A (°)'],['lr','Left-hand load share (%) — recorded, NOT in RNLE']];
+function form(){const s=SC[S.cur];$('form').innerHTML=FLD.map(([k,t])=>`<div><label>${t}</label><input type="number" step="any" data-k="${k}" value="${s[k]}"></div>`).join('')+
+`<div><label>Duration</label><select data-k="dur"><option value="0">≤ 1 h</option><option value="1">&gt;1 to 2 h</option><option value="2">&gt;2 to 8 h</option></select></div><div><label>Coupling</label><select data-k="cp"><option value="good">Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div>
+<div style="grid-column:span 2"><label class="chk"><input type="checkbox" data-k="ctrl">Significant control required at destination (evaluate origin AND destination)</label></div>`;
+ document.querySelectorAll('#form [data-k]').forEach(el=>{const k=el.dataset.k;if(k==='dur'||k==='cp')el.value=s[k];if(k==='ctrl')el.checked=s.ctrl;
+ el.oninput=()=>{s[k]=el.type==='checkbox'?el.checked:(k==='cp'?el.value:k==='dur'?+el.value:el.value===''?NaN:+el.value);res()}})}
+const f=(v,d=2)=>Number.isFinite(v)?v.toFixed(d):v===Infinity?'∞':'—';
+function res(){const ok=![...document.querySelectorAll('.exc')].some(c=>c.checked),mode=$('fmMode').value,out={};let h='';
+ for(const k of['A','B'])out[k]=task(SC[k],mode,ok);S.out=out;
+ if(!ok){$('res').innerHTML='<b class="no">OUTSIDE RNLE SCOPE — RWL/LI withheld. The equation does not apply to the condition(s) ticked in section 5.</b>';return}
+ const rows=['HM','VM','DM','AM','FM','CM'];const cols=[];for(const k of['A','B']){const t=out[k];cols.push([k+' origin',t.o],[k+' destination',t.d])}
+ h+='<table><tr><th>Term</th>'+cols.map(c=>`<th>${c[0]}</th>`).join('')+'</tr>';
+ rows.forEach(r=>h+=`<tr><td>${r}</td>${cols.map(c=>`<td>${c[1]&&c[1].valid?f(c[1][r],3):'—'}</td>`).join('')}</tr>`);
+ h+=`<tr><td><b>RWL (kg)</b></td>${cols.map(c=>`<td>${c[1]&&c[1].valid?f(c[1].RWL):'—'}</td>`).join('')}</tr><tr><td><b>LI = load / RWL</b></td>${cols.map(c=>`<td>${c[1]&&c[1].valid?f(c[1].LI):'—'}</td>`).join('')}</tr></table>`;
+ const rk=li=>li<=1?['≤1.0: acceptable for most healthy workers (NIOSH)','#1b7a3d']:li<3?['1–3: increased risk for some workers','#a85f00']:['≥3: many workers at high risk','#c8321e'];
+ for(const k of['A','B']){const t=out[k];if(!t.valid&&t.o&&!t.o.valid||t.d&&!t.d.valid){h+=`<p class="no">Scenario ${k} invalid: ${(t.o.errs.concat(t.d?t.d.errs:[])).join('; ')}</p>`;continue}
+  const r=rk(t.LI);h+=`<p><b>Scenario ${k}</b> (${SC[k].m} kg, D=${f(t.D,0)} cm): governing RWL = <b>${f(t.RWL)} kg</b>, LI = <b>${f(t.LI)}</b> <span class="badge" style="background:${r[1]}">${r[0]}</span>${SC[k].ctrl?'':' <span class="mut">(origin only; no destination control declared)</span>'}<br><span class="wn mut">${[...t.o.w,...(t.d?t.d.w:[])].join(' · ')}</span>${Math.abs(SC[k].lr-50)>10?`<br><span class="wn">Unequal L/R load share (${SC[k].lr}/${100-SC[k].lr}) recorded separately; not part of RNLE.</span>`:''}</p>`}
+ const a=out.A,b=out.B;if(a.RWL!==undefined&&b.RWL!==undefined)h+=`<p><b>Change B vs A:</b> RWL ${f(b.RWL-a.RWL)} kg; LI ${f(b.LI-a.LI)} (${Number.isFinite(a.LI)&&Number.isFinite(b.LI)?f((b.LI/a.LI-1)*100,1)+' %':'n/a'}).</p>`;
+ $('res').innerHTML=h}
+// ---------- pose processing
+const P=i=>({x:S.sm[i].x*cv.width,y:S.sm[i].y*cv.height}),V=i=>S.vis[i]>=.5;
+function gate(){const g=[];if(!S.sm)return[[0,'No pose detected']];const L=IDX[S.view],need=S.view==='front'?[11,12,23,24,25,26,27,28]:[L.sh,L.el,L.wr,L.hp,L.kn,L.an,L.hl,L.ft];
+ const mv=Math.min(...need.map(i=>S.vis[i]));g.push([mv>=.6,`Required landmarks visible (min ${mv.toFixed(2)} ≥ 0.60)`]);
+ g.push([need.every(i=>S.sm[i].x>.02&&S.sm[i].x<.98&&S.sm[i].y>.02&&S.sm[i].y<.98),'All required landmarks inside frame margin (2%)']);
+ const sh=P(11),sh2=P(12),hp=P(23),hp2=P(24),torso=Math.hypot((sh.x+sh2.x)/2-(hp.x+hp2.x)/2,(sh.y+sh2.y)/2-(hp.y+hp2.y)/2),r=Math.abs(sh.x-sh2.x)/torso;
+ g.push([S.view==='front'?r>.6:r<.35,`View check: shoulder separation/torso = ${r.toFixed(2)} (${S.view==='front'?'frontal needs > 0.60':'sagittal needs < 0.35'})`]);
+ g.push([!!S.cal,'Pixel→cm scale calibrated']);g.push([S.fps>=15,`Processing rate ${S.fps.toFixed(0)} fps (≥15 required; 30 recommended)`]);
+ g.push([CH.every((_,i)=>$('ck'+i).checked),'Setup checklist confirmed']);return g}
+function sig(){return(S.cm&&$('sigSel').value==='auto')?{v:S.cm.Vh,u:'cm'}:{v:S.cm?S.cm.trunk:NaN,u:'°'}}
+function compute(){const L=IDX[S.view],o={};const ok=k=>Number.isFinite(k);
+ const pxcm=S.cal?S.cal.pxcm:null;
+ if(S.view!=='front'){const sh=P(L.sh),hp=P(L.hp),kn=P(L.kn),an=P(L.an),el=P(L.el),wr=P(L.wr),ft=P(L.ft),hl=P(L.hl),fc=ft.x>=hl.x?1:-1;
+  o.trunk=trunkDeg(hp,sh,fc);o.hip=180-ang(sh,hp,kn);o.knee=180-ang(hp,kn,an);o.elbow=180-ang(sh,el,wr);o.shoulder=ang(hp,sh,el)}
+ else{const a=(p,q)=>{let d=Math.atan2(q.y-p.y,q.x-p.x)*180/Math.PI;if(d>90)d-=180;if(d<-90)d+=180;return Math.abs(d)};const s1=P(11),s2=P(12),h1=P(23),h2=P(24);
+  o.shTilt=a(s1,s2);o.pelTilt=a(h1,h2);o.lat=Math.abs(Math.atan2((s1.x+s2.x)/2-(h1.x+h2.x)/2,(h1.y+h2.y)/2-(s1.y+s2.y)/2)*180/Math.PI)}
+ if(S.world){const w=S.world,tw=(a,b)=>Math.atan2(w[b].z-w[a].z,w[b].x-w[a].x)*180/Math.PI;let d=tw(11,12)-tw(23,24);d=((d+540)%360)-180;o.twist=Math.abs(d)}
+ const hs=[15,17,19,16,18,20].filter(V);if(hs.length&&pxcm){const hx=hs.reduce((a,i)=>a+P(i).x,0)/hs.length,hy=hs.reduce((a,i)=>a+P(i).y,0)/hs.length;
+  const fl=[29,30,31,32].filter(V).map(i=>P(i).y),an=[27,28].filter(V).map(i=>P(i).x);if(fl.length&&an.length){const fy=Math.max(...fl),ax=an.reduce((a,b)=>a+b,0)/an.length;o.Vh=(fy-hy)/pxcm;o.Hh=Math.abs(hx-ax)/pxcm;o.px={hx,hy,fy,ax}}}
+ return o}
+function disp(o){S.cm=o;const R=[['Trunk inclination (°)','trunk'],['Hip flexion (°)','hip'],['Knee flexion (°)','knee'],['Elbow flexion (°)','elbow'],['Shoulder (°, vs trunk)','shoulder'],['Shoulder-line tilt (°)','shTilt'],['Pelvic tilt (°)','pelTilt'],['Lateral trunk lean (°)','lat'],['Trunk twist (° indicative 3D)','twist'],['Hand height V (cm)','Vh'],['Hand distance H (cm)','Hh']];
+ let h='<tr><th>Measure</th><th>Now</th><th>Min</th><th>Max</th></tr>';
+ R.forEach(([t,k])=>{const v=o[k];if(v===undefined&&!['Vh','Hh'].includes(k))return;if(Number.isFinite(v)){const e=S.ext[k]||(S.ext[k]={min:v,max:v});e.min=Math.min(e.min,v);e.max=Math.max(e.max,v)}const e=S.ext[k];h+=`<tr><td>${t}</td><td>${f(v,1)}</td><td>${e?f(e.min,1):'—'}</td><td>${e?f(e.max,1):'—'}</td></tr>`});
+ const s=sig(),amp=+$('amp').value||25;let z=S.zz;if(!z||z.u!==s.u)z=S.zz={u:s.u,dir:0,hi:s.v,lo:s.v};
+ if(Number.isFinite(s.v)){if(z.dir===0){z.hi=Math.max(z.hi,s.v);z.lo=Math.min(z.lo,s.v);if(z.hi-s.v>=amp){z.dir=-1;z.lo=s.v;S.peaks.push(S.t)}else if(s.v-z.lo>=amp){z.dir=1;z.hi=s.v}}
+  else if(z.dir===1){z.hi=Math.max(z.hi,s.v);if(z.hi-s.v>=amp){z.dir=-1;z.lo=s.v;S.peaks.push(S.t)}}else{z.lo=Math.min(z.lo,s.v);if(s.v-z.lo>=amp){z.dir=1;z.hi=s.v}}}
+ const n=S.peaks.length,rate=n>=3?(n-1)/((S.peaks[n-1]-S.peaks[0])/60000):NaN;S.rate=rate;
+ h+=`<tr><td>Signal phase (${s.u})</td><td colspan="3">${z.dir===1?'rising':z.dir===-1?'falling':'idle/undetermined'}</td></tr><tr><td>Repetitions (peaks ≥ ${amp}${s.u})</td><td colspan="3">${n}</td></tr><tr><td>Measured cycle rate (lifts/min, needs ≥3 peaks)</td><td colspan="3">${f(rate,1)}</td></tr>`;$('mt').innerHTML=h;
+ if(Number.isFinite(o.trunk)||Number.isFinite(o.lat)){S.hist.push(s.v);if(S.hist.length>320)S.hist.shift()}spark()}
+function spark(){const c=$('spark').getContext('2d'),W=640,H=90;c.clearRect(0,0,W,H);c.fillStyle='#fff';c.fillRect(0,0,W,H);const d=S.hist.filter(Number.isFinite);if(d.length<2)return;const mn=Math.min(...d),mx=Math.max(...d)||1,sp=(mx-mn)||1;c.strokeStyle='#c8321e';c.beginPath();d.forEach((v,i)=>{const x=i/(S.hist.length-1)*W,y=H-6-(v-mn)/sp*(H-12);i?c.lineTo(x,y):c.moveTo(x,y)});c.stroke();c.fillStyle='#111';c.font='11px Helvetica';c.fillText('rep signal ('+(S.zz?S.zz.u:'')+') '+f(mn,0)+'…'+f(mx,0),4,11)}
+function draw(o){const L=IDX[S.view];ctx.lineWidth=2;if(S.sm){CON.forEach(([a,b])=>{if(S.vis[a]<.3||S.vis[b]<.3)return;const sel=[L.sh,L.hp,L.kn,L.an,L.el,L.wr,L.hl,L.ft];ctx.strokeStyle=(sel.includes(a)&&sel.includes(b))?'#c8321e':'#111';const A=P(a),B=P(b);ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke()});
+  for(let i=11;i<33;i++){if(S.vis[i]<.3)continue;const p=P(i);ctx.fillStyle=S.vis[i]>=.6?'#c8321e':'#999';ctx.beginPath();ctx.arc(p.x,p.y,3.5,0,7);ctx.fill()}
+  if(o&&o.px){ctx.setLineDash([5,4]);ctx.strokeStyle='#0a3dff';ctx.beginPath();ctx.moveTo(o.px.hx,o.px.hy);ctx.lineTo(o.px.hx,o.px.fy);ctx.moveTo(o.px.hx,o.px.fy);ctx.lineTo(o.px.ax,o.px.fy);ctx.stroke();ctx.setLineDash([])}}
+ S.calPts.forEach(p=>{ctx.fillStyle='#0a3dff';ctx.fillRect(p.x-4,p.y-4,8,8)});if(S.cal&&S.cal.p){ctx.strokeStyle='#0a3dff';ctx.beginPath();ctx.moveTo(S.cal.p[0].x,S.cal.p[0].y);ctx.lineTo(S.cal.p[1].x,S.cal.p[1].y);ctx.stroke()}}
+function gui(){const g=gate();$('gate').innerHTML=g.map(([k,t])=>`<div class="${k?'ok':'no'}">${k?'✔':'✘'} ${t}</div>`).join('');const all=g.every(x=>x[0]);
+ $('gateBadge').innerHTML=`<span class="badge" style="background:${all?'#1b7a3d':'#c8321e'}">${all?'MEASUREMENT-GRADE SETUP':'INDICATIVE ONLY — fix ✘ items'}</span>`;S.gateOK=all}
+function frame(lm,world,t){S.t=t;const a=.6;if(!S.sm)S.sm=lm.map(p=>({x:p.x,y:p.y}));else lm.forEach((p,i)=>{S.sm[i].x=a*p.x+(1-a)*S.sm[i].x;S.sm[i].y=a*p.y+(1-a)*S.sm[i].y});S.vis=lm.map(p=>p.visibility??1);S.world=world||null;
+ const o=compute();disp(o);draw(o);gui()}
+// ---------- sources
+const SRC={cam:'LIVE WEBCAM',file:'UPLOADED VIDEO FILE',demo:'SYNTHETIC DEMO — MOCK STICK FIGURE, NOT A PERSON'};
+function setMode(m){stop(true);S.mode=m;S.src=SRC[m];$('srcTag').textContent=S.src;S.sm=null;S.peaks=[];S.zz=null;S.hist=[];S.ext={}}
+function stop(keep){if(vid.srcObject){vid.srcObject.getTracks().forEach(t=>t.stop());vid.srcObject=null}vid.pause();if(!keep){S.mode='none';$('srcTag').textContent='NO SOURCE'}}
+$('bStop').onclick=()=>stop();$('bReset').onclick=()=>{S.ext={};S.peaks=[];S.zz=null;S.hist=[]};
+$('bCam').onclick=async()=>{try{setMode('cam');const st=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}},audio:false});vid.srcObject=st;await vid.play();cv.width=vid.videoWidth;cv.height=vid.videoHeight;$('stat').textContent='Webcam running.'}catch(e){stop();$('stat').textContent='Webcam unavailable: '+e.message+' (use Upload video or serve via http://localhost).'}};
+$('bFile').onclick=()=>$('fileIn').click();$('fileIn').onchange=async e=>{const fl=e.target.files[0];if(!fl)return;setMode('file');vid.src=URL.createObjectURL(fl);vid.loop=true;await vid.play();cv.width=vid.videoWidth;cv.height=vid.videoHeight;$('stat').textContent='Playing '+fl.name};
+$('bDemo').onclick=()=>{setMode('demo');cv.width=640;cv.height=480;$('view').value='right';S.view='right';S.cal={pxcm:2.2,src:'synthetic preset'};$('calTxt').textContent='Scale 2.20 px/cm (synthetic preset)';S.t0=performance.now();$('stat').textContent='Synthetic demo: code-generated stick figure (mock input).'};
+function synth(t){const T=4,s=(1-Math.cos(2*Math.PI*t/T))/2,kf=100*s,ph=.4*kf*Math.PI/180,th=(ph-kf*Math.PI/180),tau=70*s*Math.PI/180,sc=220,Ls=.43,Lt=.43,Lk=.5,La=.55;
+ const A={x:0,y:.08},K={x:A.x+Ls*Math.sin(ph),y:A.y+Ls*Math.cos(ph)},Hp={x:K.x+Lt*Math.sin(th),y:K.y+Lt*Math.cos(th)},Sh={x:Hp.x+Lk*Math.sin(tau),y:Hp.y+Lk*Math.cos(tau)},W={x:Sh.x+.12*(.4+.6*s)+.1,y:Sh.y-La*.9+.15*(1-s)};
+ const E={x:(Sh.x+W.x)/2,y:(Sh.y+W.y)/2},px=p=>({x:(320+(p.x+.2)*sc)/640,y:(440-p.y*sc)/480,z:0,visibility:1}),lm=Array.from({length:33},()=>({x:.5,y:.5,z:0,visibility:0}));
+ const set=(ids,p)=>ids.forEach(i=>lm[i]=px(p));set([11,12],Sh);set([13,14],E);set([15,16,17,18,19,20,21,22],W);set([23,24],Hp);set([25,26],K);set([27,28],A);set([29,30],{x:A.x-.08,y:0});set([31,32],{x:A.x+.15,y:0});return lm}
+// ---------- landmarker
+let LMK=null;async function load(){$('stat').textContent='Loading pose model (needs internet once)…';try{const fs=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'),m=$('model').value,url=`https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${m}/float16/1/pose_landmarker_${m}.task`;
+ for(const d of['GPU','CPU']){try{LMK=await PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:url,delegate:d},runningMode:'VIDEO',numPoses:1});$('stat').textContent=`Pose model ready (${m}, ${d}).`;return}catch(e){}}throw new Error('model init failed')}catch(e){LMK=null;$('stat').textContent='Pose model failed to load ('+e.message+'). Synthetic demo still works; check internet.'}}
+$('model').onchange=load;load();
+function tick(){requestAnimationFrame(tick);const now=performance.now();
+ if(S.mode==='demo'){ctx.fillStyle='#fff';ctx.fillRect(0,0,640,480);ctx.strokeStyle='#111';ctx.beginPath();ctx.moveTo(0,440);ctx.lineTo(640,440);ctx.stroke();ctx.fillStyle='#c8321e';ctx.font='bold 14px Helvetica';ctx.fillText('SYNTHETIC — NOT A PERSON',12,468);frame(synth((now-S.t0)/1000),null,now-S.t0);return}
+ if((S.mode==='cam'||S.mode==='file')&&LMK&&vid.videoWidth&&vid.readyState>=2){if(S.mode==='file'&&vid.currentTime===S.lastVT)return;S.lastVT=vid.currentTime;const ts=Math.max(now,S.ts+1);S.ts=ts;ctx.drawImage(vid,0,0,cv.width,cv.height);
+  const r=LMK.detectForVideo(vid,ts);if(S.lastT)S.fps=.9*S.fps+.1*(1000/(now-S.lastT));S.lastT=now;
+  if(r.landmarks&&r.landmarks[0])frame(r.landmarks[0],r.worldLandmarks&&r.worldLandmarks[0],S.mode==='file'?vid.currentTime*1000:now);else{S.sm=null;gui()}}}
+tick();
+// ---------- calibration & capture
+$('view').onchange=()=>{S.view=$('view').value;S.ext={}};S.view='right';
+$('bCal').onclick=()=>{S.calMode=true;S.calPts=[];$('calTxt').textContent='Click end 1 then end 2 of a known-length reference in the subject\'s plane.'};
+$('bCalClr').onclick=()=>{S.cal=null;S.calPts=[];$('calTxt').textContent='Not calibrated – H, V and cm values unavailable.'};
+cv.onclick=e=>{if(!S.calMode)return;const r=cv.getBoundingClientRect();S.calPts.push({x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height});
+ if(S.calPts.length===2){const L=parseFloat(prompt('Real length of the reference between the two points (cm):','100'));S.calMode=false;if(L>0){const d=Math.hypot(S.calPts[0].x-S.calPts[1].x,S.calPts[0].y-S.calPts[1].y);S.cal={pxcm:d/L,p:S.calPts.slice(),src:'user reference'};$('calTxt').textContent=`Scale ${S.cal.pxcm.toFixed(3)} px/cm from ${L} cm reference`}S.calPts=[]}};
+function cap(w){if(!S.cm||!Number.isFinite(S.cm.Vh)){alert('No camera-derived H/V available: need a calibrated scale, side view, and visible hands and feet.');return}const s=SC[S.cur];s['H'+w]=+S.cm.Hh.toFixed(1);s['V'+w]=+S.cm.Vh.toFixed(1);form();res()}
+$('capO').onclick=()=>cap(0);$('capD').onclick=()=>cap(1);
+$('useRate').onclick=()=>{if(!Number.isFinite(S.rate)){alert('Need ≥3 detected repetitions.');return}SC[S.cur].F=+S.rate.toFixed(2);form();res()};
+$('tA').onclick=()=>{S.cur='A';$('tA').className='on';$('tB').className='o';form()};$('tB').onclick=()=>{S.cur='B';$('tB').className='on';$('tA').className='o';form()};
+$('cpAB').onclick=()=>{SC.B={...SC.A};form();res()};$('fmMode').onchange=res;document.querySelectorAll('.exc').forEach(c=>c.onchange=res);
+$('bTest').onclick=()=>{const r=selfTest();$('tests').innerHTML=r.map(([t,k])=>`<div class="${k?'ok':'no'}">${k?'PASS':'FAIL'} — ${t}</div>`).join('')};$('bPrint').onclick=()=>print();
+$('bCsv').onclick=()=>{const rows=[['MIMICA LoadLab report'],['Subject Name',$('subjName').value||'—'],['Test Number',$('testNum').value||'—'],['Generated',new Date().toISOString()],['Video source',S.src],['Camera view',S.view],['Scale px/cm',S.cal?S.cal.pxcm.toFixed(4):'none'],['Setup gate',S.gateOK?'measurement-grade':'indicative only'],/*['Status','Screening prototype; not validated; not MIL-STD certified'],*/[],['Video-derived min/max']];
+ for(const[k,e]of Object.entries(S.ext))rows.push([k,'min',f(e.min,1),'max',f(e.max,1)]);rows.push(['Repetitions',S.peaks.length],['Measured rate lifts/min',f(S.rate,1)],[],['Task inputs','Scenario A','Scenario B']);
+ for(const k of Object.keys(SC.A))rows.push([k,SC.A[k],SC.B[k]]);rows.push(['FM mode',$('fmMode').value],['Exclusions ticked',[...document.querySelectorAll('.exc')].filter(c=>c.checked).length],[]);
+ for(const k of['A','B']){const t=S.out&&S.out[k];if(!t||!t.o)continue;rows.push(['Scenario '+k,'RWL kg',f(t.RWL),'LI',f(t.LI)]);for(const[n,x]of[['origin',t.o],['dest',t.d]])if(x&&x.valid)rows.push([n,'HM',f(x.HM,3),'VM',f(x.VM,3),'DM',f(x.DM,3),'AM',f(x.AM,3),'FM',f(x.FM,3),'CM',f(x.CM,3)])}
+ rows.push([],['Assumptions','RWL=23·HM·VM·DM·AM·FM·CM (metric, Waters 1993; NIOSH Applications Manual). L/R load share not in RNLE. H,V from 2D pose + user scale are proxies.']);
+ const csv=rows.map(r=>r.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='loadlab_report.csv';a.click()};
+form();res();gui();
+</script></body></html>
